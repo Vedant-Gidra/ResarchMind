@@ -57,8 +57,6 @@ multi-agent-research-system/
 ├── pipeline.py      # CLI pipeline runner
 ├── app.py           # Streamlit app
 ├── error_handling.py # Error normalization utilities
-├── assets/
-│   └── architecture.png
 ├── pyproject.toml   # dependencies and project metadata
 ├── uv.lock          # lockfile for reproducible installs
 └── README.md
