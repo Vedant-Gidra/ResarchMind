@@ -15,10 +15,6 @@ The project supports:
 - CLI execution (`pipeline.py`)
 - Streamlit UI execution (`app.py`)
 
-## Architecture
-
-![ResearchMind Architecture](assets/architecture.png)
-
 ## Features
 - Researcher agent using Tavily web search
 - Writer agent for report generation
@@ -49,8 +45,8 @@ flowchart TD
     search_results --> writer["Writer Agent"]
     writer --> final_report["Final Research Report"]
 
-    groq_llm["Groq LLM\nmixtral-8x7b-32768"] --> researcher
-    groq_llm --> writer
+    researcher_llm["Groq LLM\nmeta-llama/llama-4-scout-17b-16e-instruct"] --> researcher
+    writer_llm["Groq LLM\nllama-3.3-70b-versatile"] --> writer
 ```
 
 ## Project Structure
