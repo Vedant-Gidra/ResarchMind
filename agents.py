@@ -2,11 +2,11 @@ from langchain.agents import create_agent
 from langchain_groq import ChatGroq
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
-from tools import web_search
-from config import RESEARCHER_MODEL, WRITER_MODEL, WRITER_LLM_TEMPERATURE , RESEARCHER_LLM_TEMPERATURE
+from config import RESEARCHER_MODEL, WRITER_MODEL, WRITER_LLM_TEMPERATURE, RESEARCHER_LLM_TEMPERATURE
 from dotenv import load_dotenv
 import os
 from typing import Optional
+from mcp_tools import get_mcp_tools_list
 
 load_dotenv()
 
@@ -77,11 +77,13 @@ def get_writer_llm() -> ChatGroq:
 
 # ────── RESEARCHER AGENT ──────
 
-def build_researcher_agent():
+def build_researcher_agent(tools=None):
     try:
+        if tools is None:
+            tools = get_mcp_tools_list()
         return create_agent(
             model=get_researcher_llm(),
-            tools=[web_search]
+            tools=tools
         )
     except Exception as exc:
         raise RuntimeError("Failed to build Researcher Agent.") from exc
