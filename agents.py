@@ -1,8 +1,9 @@
 from langchain.agents import create_agent
-from langchain_mistralai import ChatMistralAI
+from langchain_groq import ChatGroq
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
-from tools import web_search, scrape_url
+from tools import web_search
+from config import RESEARCHER_MODEL, WRITER_MODEL, WRITER_LLM_TEMPERATURE , RESEARCHER_LLM_TEMPERATURE
 from dotenv import load_dotenv
 import os
 from typing import Optional
@@ -15,144 +16,99 @@ class ConfigError(RuntimeError):
     pass
 
 
-def _resolve_mistral_api_key() -> str:
-    """
-    Fetch Mistral API key from environment variables.
-    """
-    api_key = os.getenv("MISTRAL_API_KEY")
+def _resolve_groq_api_key() -> str:
+    """Fetch Groq API key from environment variables."""
+    api_key = os.getenv("GROQ_API_KEY")
 
     if not api_key:
         raise ConfigError(
-            "Missing MISTRAL_API_KEY. Set it in your .env file or Streamlit secrets."
+            "Missing GROQ_API_KEY. Set it in your .env file or Streamlit secrets."
         )
 
     return api_key
 
 
-# Global cached LLM instance
-_llm: Optional[ChatMistralAI] = None
+# Separate cached LLM instances
+_researcher_llm: Optional[ChatGroq] = None
+_writer_llm: Optional[ChatGroq] = None
 
 
-def get_llm() -> ChatMistralAI:
-    """
-    Lazily initialize Mistral LLM.
-    Prevents multiple reinitializations.
-    """
-    global _llm
+def get_researcher_llm() -> ChatGroq:
+    """Lazily initialize Groq LLM for Researcher Agent."""
+    global _researcher_llm
 
-    if _llm is not None:
-        return _llm
+    if _researcher_llm is not None:
+        return _researcher_llm
 
     try:
-        _llm = ChatMistralAI(
-            model="mistral-large-latest",
-            temperature=0,
-            mistral_api_key=_resolve_mistral_api_key(),
+        _researcher_llm = ChatGroq(
+            model=RESEARCHER_MODEL,
+            temperature=RESEARCHER_LLM_TEMPERATURE,
+            groq_api_key=_resolve_groq_api_key(),
         )
-        return _llm
+        return _researcher_llm
 
     except Exception as exc:
         raise RuntimeError(
-            "Failed to initialize Mistral model client. Check API key, model access, and network."
+            "Failed to initialize Groq Researcher model client. Check API key, model access, and network."
         ) from exc
 
 
-# ---------------- SEARCH AGENT ----------------
+def get_writer_llm() -> ChatGroq:
+    """Lazily initialize Groq LLM for Writer Agent."""
+    global _writer_llm
 
-def build_search_agent():
+    if _writer_llm is not None:
+        return _writer_llm
+
+    try:
+        _writer_llm = ChatGroq(
+            model=WRITER_MODEL,
+            temperature=WRITER_LLM_TEMPERATURE,
+            groq_api_key=_resolve_groq_api_key(),
+        )
+        return _writer_llm
+
+    except Exception as exc:
+        raise RuntimeError(
+            "Failed to initialize Groq Writer model client. Check API key, model access, and network."
+        ) from exc
+
+
+# ────── RESEARCHER AGENT ──────
+
+def build_researcher_agent():
     try:
         return create_agent(
-            model=get_llm(),
+            model=get_researcher_llm(),
             tools=[web_search]
         )
     except Exception as exc:
-        raise RuntimeError("Failed to build Search Agent.") from exc
+        raise RuntimeError("Failed to build Researcher Agent.") from exc
 
 
-# ---------------- READER AGENT ----------------
-
-def build_reader_agent():
-    try:
-        return create_agent(
-            model=get_llm(),
-            tools=[scrape_url]
-        )
-    except Exception as exc:
-        raise RuntimeError("Failed to build Reader Agent.") from exc
-
-
-# ---------------- WRITER CHAIN ----------------
+# ────── WRITER CHAIN ──────
 
 writer_prompt = ChatPromptTemplate.from_messages([
     (
         "system",
-        "You are an expert research writer. Write clear, structured and insightful reports."
+        "You are an expert research writer. Write clear, structured, and insightful reports based on research summaries."
     ),
     (
         "human",
-        """
-Write a detailed research report on the topic below.
+        """Write a research report on: {topic}
 
-Topic: {topic}
-
-Research Gathered:
+Research Summary:
 {research}
 
-Structure the report as:
-- Introduction
-- Key Findings (minimum 3 well-explained points)
-- Conclusion
-- Sources (list all URLs found in the research)
-
-Be detailed, factual, and professional.
-"""
+Format as: Introduction, Key Findings, Conclusion, Sources.
+Be concise and factual."""
     ),
 ])
 
 
 def build_writer_chain():
     try:
-        return writer_prompt | get_llm() | StrOutputParser()
+        return writer_prompt | get_writer_llm() | StrOutputParser()
     except Exception as exc:
         raise RuntimeError("Failed to build Writer Chain.") from exc
-
-
-# ---------------- CRITIC CHAIN ----------------
-
-critic_prompt = ChatPromptTemplate.from_messages([
-    (
-        "system",
-        "You are a sharp and constructive research critic. Be honest and specific."
-    ),
-    (
-        "human",
-        """
-Review the research report below and evaluate it strictly.
-
-Report:
-{report}
-
-Respond in this exact format:
-
-Score: X/10
-
-Strengths:
-- ...
-- ...
-
-Areas to Improve:
-- ...
-- ...
-
-One line verdict:
-...
-"""
-    ),
-])
-
-
-def build_critic_chain():
-    try:
-        return critic_prompt | get_llm() | StrOutputParser()
-    except Exception as exc:
-        raise RuntimeError("Failed to build Critic Chain.") from exc

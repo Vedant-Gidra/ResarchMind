@@ -27,24 +27,23 @@ def _is_valid_http_url(url: str) -> bool:
 
 @tool
 def web_search(query: str) -> str:
-    """Search the web for recent and reliable information on a topic. Returns titles, URLs, and snippets."""
+    """Search the web for information. Returns titles, URLs, and snippets."""
     query = (query or "").strip()
     if not query:
         return "Search query is empty. Please provide a valid topic."
 
     try:
         tavily = _get_tavily_client()
-        results = tavily.search(query=query, max_results=5)
+        results = tavily.search(query=query, max_results=3)
     except Exception as exc:
         return f"Web search failed: {exc}"
 
     out = []
-
     for r in results.get("results", []):
         out.append(
             f"Title: {r.get('title', 'N/A')}\n"
             f"URL: {r.get('url', 'N/A')}\n"
-            f"Snippet: {str(r.get('content', ''))[:300]}\n"
+            f"Snippet: {str(r.get('content', ''))[:250]}\n"
         )
 
     if not out:
@@ -54,7 +53,7 @@ def web_search(query: str) -> str:
 
 @tool
 def scrape_url(url: str) -> str:
-    """Scrape and return clean text content from a given URL for deeper reading."""
+    """Scrape and return relevant text content from a given URL."""
     url = (url or "").strip()
     if not _is_valid_http_url(url):
         return "Could not scrape URL: invalid URL format."
@@ -68,7 +67,7 @@ def scrape_url(url: str) -> str:
         text = soup.get_text(separator=" ", strip=True)
         if not text:
             return "Could not scrape URL: page contains no readable text."
-        return text[:3000]
+        return text[:1200]
     except requests.Timeout:
         return "Could not scrape URL: request timed out."
     except requests.HTTPError as exc:

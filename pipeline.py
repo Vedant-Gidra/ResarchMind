@@ -1,8 +1,6 @@
 from agents import (
-    build_reader_agent,
-    build_search_agent,
+    build_researcher_agent,
     build_writer_chain,
-    build_critic_chain,
 )
 from error_handling import format_step_error, normalize_llm_error
 
@@ -49,98 +47,42 @@ def run_research_pipeline(topic: str) -> dict:
 
     state = {"errors": {}}
 
-    # search agent working
-    print("\n"+" ="*50)
-    print("step 1 - search agent is working ...")
+    print("\n" + " ="*50)
+    print("step 1 - Researcher Agent is gathering information...")
     print("="*50)
 
     try:
-        search_agent = build_search_agent()
-        search_result = search_agent.invoke({
-            "messages": [("user", f"Find recent, reliable and detailed information about: {topic}")]
+        researcher_agent = build_researcher_agent()
+        research_result = researcher_agent.invoke({
+            "messages": [("user", f"Find recent and relevant information about: {topic}")]
         })
-        state["search_results"] = _extract_last_message_content("Search step", search_result)
-        print("\n search result ", state["search_results"])
+        state["research"] = _extract_last_message_content("Researcher step", research_result)
+        print("\nresearch result:", state["research"])
     except Exception as exc:
-        state["errors"]["search"] = format_step_error("Step 1 failed (Search Agent)", exc)
-        print(f"\n{state['errors']['search']}")
+        state["errors"]["researcher"] = format_step_error("Step 1 failed (Researcher Agent)", exc)
+        print(f"\n{state['errors']['researcher']}")
 
-    # step 2 - reader agent
-    print("\n"+" ="*50)
-    print("step 2 - Reader agent is scraping top resources ...")
+    print("\n" + " ="*50)
+    print("step 2 - Writer is drafting the report...")
     print("="*50)
 
-    if state.get("search_results"):
-        try:
-            reader_agent = build_reader_agent()
-            reader_result = reader_agent.invoke({
-                "messages": [("user",
-                    f"Based on the following search results about '{topic}', "
-                    f"pick the most relevant URL and scrape it for deeper content.\n\n"
-                    f"Search Results:\n{state['search_results'][:800]}"
-                )]
-            })
-            state["scraped_content"] = _extract_last_message_content("Reader step", reader_result)
-            print("\nscraped content: \n", state["scraped_content"])
-        except Exception as exc:
-            state["errors"]["reader"] = format_step_error("Step 2 failed (Reader Agent)", exc)
-            print(f"\n{state['errors']['reader']}")
-    else:
-        state["errors"]["reader"] = "Step 2 skipped (Reader Agent): missing search results."
-        print(f"\n{state['errors']['reader']}")
-
-    # step 3 - writer chain
-
-    print("\n"+" ="*50)
-    print("step 3 - Writer is drafting the report ...")
-    print("="*50)
-
-    research_parts = []
-    if state.get("search_results"):
-        research_parts.append(f"SEARCH RESULTS:\n{state['search_results']}")
-    if state.get("scraped_content"):
-        research_parts.append(f"DETAILED SCRAPED CONTENT:\n{state['scraped_content']}")
-
-    if research_parts:
+    if state.get("research"):
         try:
             writer_chain = build_writer_chain()
             state["report"] = writer_chain.invoke({
                 "topic": topic,
-                "research": "\n\n".join(research_parts)
+                "research": state["research"]
             })
             state["report"] = _content_to_text(state["report"])
             if not state["report"]:
                 raise RuntimeError("Writer produced an empty report.")
-            print("\n Final Report\n", state["report"])
+            print("\nFinal Report\n", state["report"])
         except Exception as exc:
-            state["errors"]["writer"] = format_step_error("Step 3 failed (Writer Chain)", exc)
+            state["errors"]["writer"] = format_step_error("Step 2 failed (Writer Chain)", exc)
             print(f"\n{state['errors']['writer']}")
     else:
-        state["errors"]["writer"] = "Step 3 skipped (Writer Chain): no research context available."
+        state["errors"]["writer"] = "Step 2 skipped (Writer Chain): no research context available."
         print(f"\n{state['errors']['writer']}")
-
-    # critic report
-
-    print("\n"+" ="*50)
-    print("step 4 - critic is reviewing the report ")
-    print("="*50)
-
-    if state.get("report"):
-        try:
-            critic_chain = build_critic_chain()
-            state["feedback"] = critic_chain.invoke({
-                "report": state["report"]
-            })
-            state["feedback"] = _content_to_text(state["feedback"])
-            if not state["feedback"]:
-                raise RuntimeError("Critic produced empty feedback.")
-            print("\n critic report \n", state["feedback"])
-        except Exception as exc:
-            state["errors"]["critic"] = format_step_error("Step 4 failed (Critic Chain)", exc)
-            print(f"\n{state['errors']['critic']}")
-    else:
-        state["errors"]["critic"] = "Step 4 skipped (Critic Chain): missing report."
-        print(f"\n{state['errors']['critic']}")
 
     if state["errors"]:
         print("\nPipeline completed with partial results and errors:")
@@ -150,10 +92,9 @@ def run_research_pipeline(topic: str) -> dict:
     return state
 
 
-
 if __name__ == "__main__":
     try:
-        topic = input("\n Enter a research topic : ")
+        topic = input("\nEnter a research topic: ")
         run_research_pipeline(topic)
     except KeyboardInterrupt:
         print("\nProcess interrupted by user.")
