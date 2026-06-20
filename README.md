@@ -79,6 +79,7 @@ multi-agent-research-system/
 ├── pyproject.toml      # Dependencies and project metadata
 ├── uv.lock             # Lockfile for reproducible installs
 ├── MCP_INTEGRATION.md  # MCP setup & configuration guide
+├── MCP_INTEGRATION_TEST.py  # MCP interation test suite
 └── README.md
 ```
 
